@@ -1,0 +1,152 @@
+Public Class Form1
+    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+        Dim strMScode As String = "FLXA402-A-D-AJ-P1-NN-A2-WR-N-N-J-NN/U" 'S2PW504-S0130 'A2NN20D-435200000 'FLXA402-A-D-AJ-P1-NN-A2-WR-N-N-J-NN/U
+        Dim suffixList As List(Of String) = ExtractSuffixes(strMScode)
+        Dim strNew As String = GetPatternForCode(strMScode)
+        Dim pattern As String = GetSuffixPatternForCode(strMScode)
+        Dim parsedItems As List(Of String) = ParsePatternString(strNew, pattern)
+        CompareSuffixes(parsedItems, suffixList)
+
+        'Debugging section
+        'For Each suffix As String In suffixList 'Suffix a,d e.g
+        'Debug.Print("Suffix: " & suffix)
+        'Next
+
+
+    End Sub
+
+    Private Function ExtractSuffixes(msCode As String) As List(Of String)
+        Dim parts As String() = msCode.Split("-"c)
+        Dim suffixes As New List(Of String)
+
+        If parts.Length = 2 Then
+            Dim second = parts(1)
+            For i = 0 To second.Length - 1
+                suffixes.Add(Mid(second, i + 1, 1))
+            Next
+
+        ElseIf parts.Length > 2 Then
+            For i = 1 To Math.Min(parts.Length - 1, 11) 'out-of-bounds protection
+                Dim segment As String = parts(i)
+                If segment.Contains("/") Then segment = segment.Split("/"c)(0)
+                suffixes.Add(segment)
+            Next
+        End If
+
+        Return suffixes
+    End Function
+
+    Private Function GetPatternForCode(msCode As String) As String
+        If msCode.Contains("S2PW504") Then
+            Return "S=0=1=3=0=*"
+        ElseIf msCode.Contains("A2NN20D") Then
+            Return "4=3=,,,,,0=0=*"
+        Else
+            Return "A=D=ABADAGAJAQARDD=,,C1C5D1D5D6P1S5=,,,,,,N=,,,,*"
+        End If
+    End Function
+
+    Private Function GetSuffixPatternForCode(msCode As String) As String
+        If msCode.Contains("S2PW504") Then
+            Return "11111"
+        ElseIf msCode.Contains("A2NN20D") Then
+            Return "111111111"
+        Else
+            Return "11222221112"
+        End If
+    End Function
+    Private Function ParsePatternString(strNew As String, pattern As String) As List(Of String)
+        Dim equalsPos = New List(Of Integer)
+        Dim commaPos = New List(Of Integer)
+
+        For i = 0 To strNew.Length - 1
+            If strNew(i) = "="c Then equalsPos.Add(i)
+            If strNew(i) = ","c Then commaPos.Add(i)
+        Next
+
+        Dim splitPositions As New List(Of Integer)(equalsPos)
+        splitPositions.AddRange(commaPos)
+        splitPositions.Sort()
+        'Debug.Print("Split positions: " & String.Join(",", splitPositions))
+
+        Dim patternList As List(Of String) = pattern.Select(Function(c) c.ToString()).ToList() 'Suffix Pattern Split
+        'Debug.Print("Pattern List: " & String.Join(", ", patternList))
+
+        Dim result As New List(Of String)
+        Dim patternIndex As Integer = 0 'pattern position
+        Dim chunk As String
+
+        For i = 0 To splitPositions.Count - 2
+            Dim strPos As Integer = splitPositions(i)
+            Dim start = splitPositions(i) + 2
+            Dim length = splitPositions(i + 1) - splitPositions(i)
+
+            If i = 0 And strPos = 1 Then 'if first substring is like A=
+                chunk = Mid(strNew, 1, 2)
+                result.Add(chunk)
+                patternIndex += 1
+            End If
+
+            If start + length - 1 <= strNew.Length Then 'subsequent substrings
+                chunk = Mid(strNew, start, length)
+                If chunk <> "," Then
+                    result.Add(chunk)
+                    patternIndex += 1
+
+                Else
+                    If patternIndex < patternList.Count Then 'start of comma substring
+                        Dim pat = patternList(patternIndex)
+                        If pat = "2" Then
+                            result.Add(",,")
+                            i += 1
+                            patternIndex += 1
+                        Else
+                            result.Add(",")
+                            patternIndex += 1
+                        End If
+                    End If
+                End If
+            End If
+        Next
+
+        '  If equalsPos.Count > 0 Then
+        ' Dim lastEqualsPos As Integer = equalsPos(equalsPos.Count - 1) 'last trailing substring after last =
+        'If lastEqualsPos + 1 < strNew.Length Then
+        'chunk = Mid(strNew, lastEqualsPos + 2).TrimEnd("*"c)
+        'result.Add(chunk)
+        'patternIndex += 1
+        'End If
+        'End If
+
+        Debug.Print("Parsed result: " & String.Join(" | ", result))
+        Return result
+    End Function
+
+    Private Sub CompareSuffixes(items As List(Of String), suffixes As List(Of String))
+        For i = 0 To Math.Min(items.Count, suffixes.Count) - 1
+            Dim item = items(i).TrimEnd("="c)
+            If item = "," OrElse item = ",," Then Continue For
+
+            Dim expected = suffixes(i)
+            Dim pairs As New List(Of String)
+
+            For j = 0 To item.Length - 1 Step 2
+                If j + 1 < item.Length Then
+                    pairs.Add(item.Substring(j, 2))
+                Else
+                    pairs.Add(item.Substring(j, 1))
+                End If
+            Next
+
+            If pairs.Any(Function(p) p = expected) Then
+                Console.WriteLine($"Match found in Suffix {i + 1}: {expected}")
+            Else
+                Console.WriteLine($"Match NOT found in Suffix {i + 1} (Expected: {expected}, Found: {item})")
+            End If
+        Next
+
+
+    End Sub
+
+
+End Class
